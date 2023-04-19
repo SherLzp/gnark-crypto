@@ -27,10 +27,10 @@ import (
 
 // Key for proof and verification
 type Key struct {
-	g             bn254.G2Affine // TODO @tabaie: does this really have to be randomized?
-	gRootSigmaNeg bn254.G2Affine //gRootSigmaNeg = g^{-1/σ}
-	basis         []bn254.G1Affine
-	basisExpSigma []bn254.G1Affine
+	G             bn254.G2Affine // TODO @tabaie: does this really have to be randomized?
+	GRootSigmaNeg bn254.G2Affine //GRootSigmaNeg = G^{-1/σ}
+	Basis         []bn254.G1Affine
+	BasisExpSigma []bn254.G1Affine
 }
 
 func randomOnG2() (bn254.G2Affine, error) { // TODO: Add to G2.go?
@@ -47,7 +47,7 @@ func Setup(basis []bn254.G1Affine) (Key, error) {
 		err error
 	)
 
-	if k.g, err = randomOnG2(); err != nil {
+	if k.G, err = randomOnG2(); err != nil {
 		return k, err
 	}
 
@@ -62,20 +62,20 @@ func Setup(basis []bn254.G1Affine) (Key, error) {
 	var sigmaInvNeg big.Int
 	sigmaInvNeg.ModInverse(sigma, fr.Modulus())
 	sigmaInvNeg.Sub(fr.Modulus(), &sigmaInvNeg)
-	k.gRootSigmaNeg.ScalarMultiplication(&k.g, &sigmaInvNeg)
+	k.GRootSigmaNeg.ScalarMultiplication(&k.G, &sigmaInvNeg)
 
-	k.basisExpSigma = make([]bn254.G1Affine, len(basis))
+	k.BasisExpSigma = make([]bn254.G1Affine, len(basis))
 	for i := range basis {
-		k.basisExpSigma[i].ScalarMultiplication(&basis[i], sigma)
+		k.BasisExpSigma[i].ScalarMultiplication(&basis[i], sigma)
 	}
 
-	k.basis = basis
+	k.Basis = basis
 	return k, err
 }
 
 func (k *Key) Commit(values []fr.Element) (commitment bn254.G1Affine, knowledgeProof bn254.G1Affine, err error) {
 
-	if len(values) != len(k.basis) {
+	if len(values) != len(k.Basis) {
 		err = fmt.Errorf("unexpected number of values")
 		return
 	}
@@ -86,11 +86,11 @@ func (k *Key) Commit(values []fr.Element) (commitment bn254.G1Affine, knowledgeP
 		NbTasks: 1, // TODO Experiment
 	}
 
-	if _, err = commitment.MultiExp(k.basis, values, config); err != nil {
+	if _, err = commitment.MultiExp(k.Basis, values, config); err != nil {
 		return
 	}
 
-	_, err = knowledgeProof.MultiExp(k.basisExpSigma, values, config)
+	_, err = knowledgeProof.MultiExp(k.BasisExpSigma, values, config)
 
 	return
 }
@@ -102,7 +102,7 @@ func (k *Key) VerifyKnowledgeProof(commitment bn254.G1Affine, knowledgeProof bn2
 		return fmt.Errorf("subgroup check failed")
 	}
 
-	product, err := bn254.Pair([]bn254.G1Affine{commitment, knowledgeProof}, []bn254.G2Affine{k.g, k.gRootSigmaNeg})
+	product, err := bn254.Pair([]bn254.G1Affine{commitment, knowledgeProof}, []bn254.G2Affine{k.G, k.GRootSigmaNeg})
 	if err != nil {
 		return err
 	}
